@@ -1,13 +1,12 @@
-import dramatiq
-
-# Ensure Postgres broker is registered before any actor definitions
-from .broker import broker as _broker  # noqa: F401
-import httpx
 import time
 import random
 import logging
 from typing import List, Dict, Any
+
+import dramatiq
+import httpx
 from sqlalchemy.orm import Session
+
 from ..db import SessionLocal
 from ..schemas import UserCreate, ExternalUser
 from ..crud import bulk_create_users, update_job_status

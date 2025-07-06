@@ -1,46 +1,24 @@
-"""Broker configuration using dramatiq-pg.
-
-This follows the pattern used in dramatiq-pg's official example script.
-The broker talks to PostgreSQL via a psycopg2 ThreadedConnectionPool that
-is built from the DATABASE_URL environment variable (or falls back to the
-project's default URL).
-"""
-
-import importlib
+"""Broker configuration using dramatiq-pg."""
 
 import dramatiq
+
+from dramatiq_pg import PostgresBroker
+from dramatiq.brokers.stub import StubBroker
+from dramatiq.middleware import CurrentMessage
 from dramatiq.results import Results
+from dramatiq.results.backends.stub import StubBackend
 
 from ..settings import settings
 
+# Production broker: Postgres-backed broker with CurrentMessage middleware and Postgres results backend
+postgres_broker = PostgresBroker(url=settings.database_url)
+postgres_broker.add_middleware(CurrentMessage())
 
-def _import(path: str):
-    """Import dotted path and return attribute."""
-    module_name, attr = path.rsplit(".", 1)
-    module = importlib.import_module(module_name)
-    return getattr(module, attr)
+# Test broker: in-memory StubBroker with StubBackend for results
+stub_broker = StubBroker()
+stub_broker.add_middleware(Results(backend=StubBackend()))
 
+# Decide which broker should be the default depending on the execution mode
+broker = stub_broker if settings.testing else postgres_broker
 
-# Select configuration (prod vs. tests)
-config = (
-    settings.DRAMATIQ_TEST_CONFIG if settings.testing else settings.DRAMATIQ_PROD_CONFIG
-)
-
-# Instantiate broker
-BrokerCls = _import(config["BROKER"])
-broker = BrokerCls(**config.get("OPTIONS", {}))
-
-# Attach middleware defined in settings
-for mw_path in config.get("MIDDLEWARE", []):
-    MWCls = _import(mw_path)
-    broker.add_middleware(MWCls())
-
-# Optional results backend
-backend_cfg = config.get("RESULT_BACKEND")
-if backend_cfg:
-    BackendCls = _import(backend_cfg["CLASS"])
-    backend = BackendCls(**backend_cfg.get("KWARGS", {}))
-    broker.add_middleware(Results(backend=backend))
-
-# Set as default broker
 dramatiq.set_broker(broker)

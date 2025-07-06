@@ -8,22 +8,27 @@ ensuring that database changes made during tests are rolled back and not persist
 from typing import Generator
 
 import dramatiq
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-
-from app.db import get_db
 from app.settings import settings
+
+# Switch to test mode **before** importing any project modules that build
+# database engines or Dramatiq brokers so they see the correct hostname
+# ("localhost" instead of "db").
+settings.testing = True
+
+# Import broker module so that stub_broker is registered
+import app.tasks.broker
 
 
 @pytest.fixture(scope="session")
 def db_engine() -> Generator[Engine, None, None]:
     """Create a SQLAlchemy engine for the test database session."""
-    db_uri = str(settings.database_url)
+    db_uri = settings.database_url
     engine = create_engine(db_uri)
     yield engine
     engine.dispose()
@@ -53,15 +58,6 @@ def db(db_engine: Engine) -> Generator[Session, None, None]:
 @pytest.fixture(scope="session")
 def broker() -> Generator[dramatiq.Broker, None, None]:
     """Configure StubBroker via settings and return it."""
-    from app.settings import settings  # import here so that env vars can still override
-
-    settings.testing = True  # switch to test config before broker import
-
-    # Importing broker module now builds the broker according to test config
-    import importlib
-    import app.tasks.broker  # noqa: F401  # ensures broker is built
-
-    importlib.reload(app.tasks.broker)  # if already imported in same session
 
     yield dramatiq.get_broker()
 
@@ -85,6 +81,7 @@ def client(db: Session, broker: dramatiq.Broker) -> Generator[TestClient, None, 
     use the same transaction that will be rolled back after the test.
     """
 
+    from app.db import get_db
     from app.api import app  # import after StubBroker is active
 
     def get_db_override() -> Generator[Session, None, None]:
