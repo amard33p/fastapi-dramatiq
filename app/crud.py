@@ -96,8 +96,8 @@ def bulk_create_users(
             email=user.email,
             phone=user.phone,
             website=user.website,
-            address=user.address.dict() if user.address else None,
-            company=user.company.dict() if user.company else None,
+            address=user.address.model_dump(),
+            company=user.company.model_dump(),
         )
         db_users.append(db_user)
 
