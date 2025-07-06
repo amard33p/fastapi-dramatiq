@@ -11,7 +11,7 @@ from .db import get_db, create_tables
 from .models import User, JobStatus
 from .schemas import UserResponse, JobStatusResponse, ProcessUsersResponse
 from .crud import get_users, get_job_status, create_job_status
-from .tasks.jobs import process_users_workflow, health_check
+from .tasks.jobs import process_users_workflow
 from .settings import settings
 
 # Configure logging
@@ -133,7 +133,7 @@ async def get_job_status_endpoint(job_id: str, db: Session = Depends(get_db)):
                 detail=f"Job with ID {job_id} not found",
             )
 
-        return JobStatusResponse.from_orm(job_status)
+        return JobStatusResponse.model_validate(job_status)
 
     except HTTPException:
         raise
@@ -152,7 +152,7 @@ async def list_jobs(skip: int = 0, limit: int = 20, db: Session = Depends(get_db
     """
     try:
         jobs = db.query(JobStatus).offset(skip).limit(limit).all()
-        return [JobStatusResponse.from_orm(job) for job in jobs]
+        return [JobStatusResponse.model_validate(job) for job in jobs]
     except Exception as e:
         logger.error(f"Error listing jobs: {e}")
         raise HTTPException(
@@ -168,7 +168,7 @@ async def list_users(skip: int = 0, limit: int = 20, db: Session = Depends(get_d
     """
     try:
         users = get_users(db, skip=skip, limit=limit)
-        return [UserResponse.from_orm(user) for user in users]
+        return [UserResponse.model_validate(user) for user in users]
     except Exception as e:
         logger.error(f"Error listing users: {e}")
         raise HTTPException(

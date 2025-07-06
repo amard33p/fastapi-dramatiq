@@ -1,11 +1,8 @@
-"""Integration test for FastAPI-Dramatiq workflow.
+"""Integration test for FastAPI-Dramatiq workflow using TestClient.
 
-This test mimics the manual steps from the previous ``test_workflow.py`` script but
-uses **pytest** assertions instead of ``print`` statements.  It communicates with
-an already-running instance of the application (e.g. started via
-``docker compose up``).  If the API is not reachable, the test will be skipped
-so that unit-test workflows do not fail unexpectedly on CI environments where
-the stack is not running.
+This test uses FastAPI's TestClient to directly test the API without requiring
+a running server. It follows the same workflow as the previous test but uses
+the TestClient for more efficient and reliable testing.
 
 The overall flow:
 1. Assert the health endpoint returns HTTP 200.
@@ -18,28 +15,29 @@ The overall flow:
    value.
 """
 
-import os
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Generator
 
 import pytest
-import requests
+from fastapi.testclient import TestClient
 
-DEFAULT_BASE_URL = "http://localhost:8000"
+from app.api import app
 
 
-def _get_base_url() -> str:
-    """Return base url, honouring ``FASTAPI_DRAMATIQ_BASE_URL`` env var for CI."""
-    return os.getenv("FASTAPI_DRAMATIQ_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
+@pytest.fixture
+def client() -> Generator[TestClient, None, None]:
+    """Create a TestClient instance for testing the FastAPI application."""
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 def _wait_for_job_completion(
-    base_url: str, job_id: str, timeout: int = 60
+    client: TestClient, job_id: str, timeout: int = 60
 ) -> Dict[str, Any]:
     """Poll ``/jobs/{job_id}/status`` until the job is done or *timeout* seconds."""
     start = time.time()
     while time.time() - start < timeout:
-        resp = requests.get(f"{base_url}/jobs/{job_id}/status", timeout=5)
+        resp = client.get(f"/jobs/{job_id}/status")
         if resp.status_code != 200:
             raise AssertionError(
                 f"Unexpected status code while polling: {resp.status_code}"
@@ -55,14 +53,15 @@ def _wait_for_job_completion(
     raise AssertionError("Timed out waiting for background job to complete")
 
 
-def test_full_workflow() -> None:  # pragma: no cover – integration test
-    base_url = _get_base_url()
-    print("\n🚀 Testing FastAPI Dramatiq Workflow (pytest)")
+def test_full_workflow(
+    client: TestClient,
+) -> None:  # pragma: no cover – integration test
+    print("\n🚀 Testing FastAPI Dramatiq Workflow with TestClient (pytest)")
     print("=" * 50)
 
     # 1. Health check
     print("1. Checking application health...")
-    health_resp = requests.get(f"{base_url}/health", timeout=5)
+    health_resp = client.get("/health")
     if health_resp.status_code != 200:  # Environment not ready → skip
         print("❌ Application health check failed; skipping test.")
         pytest.skip("FastAPI-Dramatiq stack is not running (health check failed)")
@@ -70,36 +69,32 @@ def test_full_workflow() -> None:  # pragma: no cover – integration test
 
     # 2. Initial user count
     print("2. Getting initial user count...")
-    initial_count = requests.get(f"{base_url}/users/count", timeout=5).json()[
-        "total_users"
-    ]
+    initial_count = client.get("/users/count").json()["total_users"]
     print(f"📊 Initial user count: {initial_count}")
 
     # 3. Trigger workflow
     print("3. Triggering user processing workflow...")
-    workflow_resp = requests.post(f"{base_url}/process_users", timeout=5)
+    workflow_resp = client.post("/process_users")
     assert workflow_resp.status_code == 200, workflow_resp.text
     job_id = workflow_resp.json()["job_id"]
     print(f"🆔 Started job with ID: {job_id}")
 
     # 4. Wait for completion
     print("4. Waiting for job completion...")
-    final_status = _wait_for_job_completion(base_url, job_id)
+    final_status = _wait_for_job_completion(client, job_id)
     print(f"✅ Job status: {final_status['status']}")
     assert final_status["status"] == "completed"
     assert final_status.get("result", {}).get("workflow_completed") is True
 
     # 5. Final user count increased
     print("5. Getting final user count...")
-    final_count = requests.get(f"{base_url}/users/count", timeout=5).json()[
-        "total_users"
-    ]
+    final_count = client.get("/users/count").json()["total_users"]
     print(f"📈 Final user count: {final_count}")
     assert final_count > initial_count, "No new users were added by the workflow"
 
     # 6. Quick sanity: fetch recent users (non-assert – network check)
     print("6. Fetching recent users (sanity check)...")
-    recent = requests.get(f"{base_url}/users?limit=5", timeout=5)
+    recent = client.get("/users?limit=5")
     print("🎉 Workflow test completed successfully!")
     assert recent.status_code == 200
     assert isinstance(recent.json(), list)

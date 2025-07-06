@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, EmailStr, ConfigDict
+from typing import Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID
 
@@ -40,8 +40,7 @@ class UserResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class JobStatusResponse(BaseModel):
@@ -54,8 +53,7 @@ class JobStatusResponse(BaseModel):
     updated_at: datetime
     completed_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProcessUsersResponse(BaseModel):
