@@ -62,7 +62,7 @@ def _wait_for_job_completion(
 
 
 def test_full_workflow(
-    client: TestClient, db: Session
+    client: TestClient, db: Session, worker
 ) -> None:  # pragma: no cover – integration test
     print("\n🚀 Testing FastAPI Dramatiq Workflow with TestClient (pytest)")
     print("=" * 50)

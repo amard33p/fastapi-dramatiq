@@ -6,11 +6,9 @@ import logging
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 from ..db import SessionLocal
-from ..models import User, JobStatus
 from ..schemas import UserCreate, ExternalUser
 from ..crud import bulk_create_users, update_job_status
 from ..settings import settings
-from .broker import rabbitmq_broker
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

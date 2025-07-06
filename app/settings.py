@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from typing import Dict, Any
 from typing import Optional
 
 
@@ -17,6 +18,40 @@ class Settings(BaseSettings):
     # Task settings
     min_delay: int = 1
     max_delay: int = 5
+
+    # Dramatiq configuration dictionaries
+    DRAMATIQ_PROD_CONFIG: Dict[str, Any] = {
+        "BROKER": "dramatiq.brokers.rabbitmq.RabbitmqBroker",
+        "OPTIONS": {"url": "amqp://admin:admin@localhost:5672/"},
+        "MIDDLEWARE": [
+            "dramatiq.middleware.CurrentMessage",
+            "dramatiq.middleware.Retries",
+            "dramatiq.middleware.TimeLimit",
+        ],
+        "RESULT_BACKEND": {
+            "CLASS": "dramatiq.results.backends.RedisBackend",
+            "KWARGS": {"url": "redis://localhost:6379/0"},
+        },
+    }
+
+    DRAMATIQ_TEST_CONFIG: Dict[str, Any] = {
+        "BROKER": "dramatiq.brokers.stub.StubBroker",
+        "OPTIONS": {},
+        "MIDDLEWARE": [
+            "dramatiq.middleware.AgeLimit",
+            "dramatiq.middleware.TimeLimit",
+            "dramatiq.middleware.Callbacks",
+            "dramatiq.middleware.Pipelines",
+            "dramatiq.middleware.Retries",
+        ],
+        "RESULT_BACKEND": {
+            "CLASS": "dramatiq.results.backends.StubBackend",
+            "KWARGS": {},
+        },
+    }
+
+    # Flag to switch between prod and test config
+    testing: bool = False
 
     class Config:
         env_file = ".env"
