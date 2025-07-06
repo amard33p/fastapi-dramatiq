@@ -1,4 +1,7 @@
 import dramatiq
+
+# Ensure Postgres broker is registered before any actor definitions
+from .broker import broker as _broker  # noqa: F401
 import httpx
 import time
 import random

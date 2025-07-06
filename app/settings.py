@@ -1,12 +1,13 @@
+import os
+
 from pydantic_settings import BaseSettings
 from typing import Dict, Any
-from typing import Optional
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql://postgres:postgres@localhost:5432/fastapi_dramatiq"
-    rabbitmq_url: str = "amqp://admin:admin@localhost:5672/"
-    redis_url: str = "redis://localhost:6379/0"
+    database_url: str = "postgresql://postgres:postgres@db:5432/fastapi_dramatiq"
+    # rabbitmq_url: str = "amqp://admin:admin@localhost:5672/"
+    # redis_url: str = "redis://localhost:6379/0"
 
     # API settings
     api_title: str = "FastAPI Dramatiq Demo"
@@ -21,17 +22,14 @@ class Settings(BaseSettings):
 
     # Dramatiq configuration dictionaries
     DRAMATIQ_PROD_CONFIG: Dict[str, Any] = {
-        "BROKER": "dramatiq.brokers.rabbitmq.RabbitmqBroker",
-        "OPTIONS": {"url": "amqp://admin:admin@localhost:5672/"},
+        # Use PostgreSQL as both broker and result backend via dramatiq-pg
+        "BROKER": "dramatiq_pg.PostgresBroker",
+        "OPTIONS": {"url": "postgresql://postgres:postgres@db:5432/fastapi_dramatiq"},
         "MIDDLEWARE": [
             "dramatiq.middleware.CurrentMessage",
             "dramatiq.middleware.Retries",
             "dramatiq.middleware.TimeLimit",
         ],
-        "RESULT_BACKEND": {
-            "CLASS": "dramatiq.results.backends.RedisBackend",
-            "KWARGS": {"url": "redis://localhost:6379/0"},
-        },
     }
 
     DRAMATIQ_TEST_CONFIG: Dict[str, Any] = {
