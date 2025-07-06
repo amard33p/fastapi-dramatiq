@@ -1,8 +1,8 @@
-"""Integration test for FastAPI-Dramatiq workflow using TestClient.
+"""Integration test for FastAPI-Dramatiq workflow using TestClient with transactional DB.
 
-This test uses FastAPI's TestClient to directly test the API without requiring
-a running server. It follows the same workflow as the previous test but uses
-the TestClient for more efficient and reliable testing.
+This test uses FastAPI's TestClient with transactional database fixtures to ensure
+that database changes are rolled back after each test. It follows the same workflow
+as the previous test but uses the TestClient for more efficient and reliable testing.
 
 The overall flow:
 1. Assert the health endpoint returns HTTP 200.
@@ -16,25 +16,33 @@ The overall flow:
 """
 
 import time
-from typing import Any, Dict, Generator
+from typing import Any, Dict
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-from app.api import app
 
-
-@pytest.fixture
-def client() -> Generator[TestClient, None, None]:
-    """Create a TestClient instance for testing the FastAPI application."""
-    with TestClient(app) as test_client:
-        yield test_client
+# Client fixture is now provided by conftest.py
 
 
 def _wait_for_job_completion(
-    client: TestClient, job_id: str, timeout: int = 60
+    client: TestClient, job_id: str, db: Session = None, timeout: int = 60
 ) -> Dict[str, Any]:
-    """Poll ``/jobs/{job_id}/status`` until the job is done or *timeout* seconds."""
+    """Poll ``/jobs/{job_id}/status`` until the job is done or *timeout* seconds.
+
+    Args:
+        client: The TestClient instance to use for API calls
+        job_id: The ID of the job to poll
+        db: Optional Session for direct DB access if needed
+        timeout: Maximum time to wait in seconds
+
+    Returns:
+        The final job status payload
+
+    Raises:
+        AssertionError: If the job fails or times out
+    """
     start = time.time()
     while time.time() - start < timeout:
         resp = client.get(f"/jobs/{job_id}/status")
@@ -54,10 +62,13 @@ def _wait_for_job_completion(
 
 
 def test_full_workflow(
-    client: TestClient,
+    client: TestClient, db: Session
 ) -> None:  # pragma: no cover – integration test
     print("\n🚀 Testing FastAPI Dramatiq Workflow with TestClient (pytest)")
     print("=" * 50)
+    print(
+        "Using transactional database session - changes will be rolled back after test"
+    )
 
     # 1. Health check
     print("1. Checking application health...")
@@ -81,7 +92,7 @@ def test_full_workflow(
 
     # 4. Wait for completion
     print("4. Waiting for job completion...")
-    final_status = _wait_for_job_completion(client, job_id)
+    final_status = _wait_for_job_completion(client, job_id, db=db)
     print(f"✅ Job status: {final_status['status']}")
     assert final_status["status"] == "completed"
     assert final_status.get("result", {}).get("workflow_completed") is True
@@ -96,5 +107,6 @@ def test_full_workflow(
     print("6. Fetching recent users (sanity check)...")
     recent = client.get("/users?limit=5")
     print("🎉 Workflow test completed successfully!")
+    print("\n⚠️ Note: All database changes will be rolled back")
     assert recent.status_code == 200
     assert isinstance(recent.json(), list)
