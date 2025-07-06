@@ -57,7 +57,7 @@ services:
           target: /app/app
           ignore:
             - .venv
-        - path: ./requirements.txt
+        - path: ./pyproject.toml
           action: rebuild
 
   worker:
@@ -82,7 +82,7 @@ services:
           target: /app/app
           ignore:
             - .venv
-        - path: ./requirements.txt
+        - path: ./pyproject.toml
           action: rebuild
 
   redis:
