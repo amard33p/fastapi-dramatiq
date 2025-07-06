@@ -7,13 +7,15 @@ ensuring that database changes made during tests are rolled back and not persist
 
 from typing import Generator
 
+import dramatiq
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.api import app
+
 from app.db import get_db
 from app.settings import settings
 
@@ -48,8 +50,33 @@ def db(db_engine: Engine) -> Generator[Session, None, None]:
         connection.close()
 
 
+@pytest.fixture(scope="session")
+def broker() -> Generator[dramatiq.Broker, None, None]:
+    """Configure StubBroker via settings and return it."""
+    from app.settings import settings  # import here so that env vars can still override
+
+    settings.testing = True  # switch to test config before broker import
+
+    # Importing broker module now builds the broker according to test config
+    import importlib
+    import app.tasks.broker  # noqa: F401  # ensures broker is built
+
+    importlib.reload(app.tasks.broker)  # if already imported in same session
+
+    yield dramatiq.get_broker()
+
+
 @pytest.fixture(scope="function")
-def client(db: Session) -> Generator[TestClient, None, None]:
+def worker(broker: dramatiq.Broker) -> Generator[dramatiq.Worker, None, None]:
+    """Start an in-process Dramatiq worker that executes tasks synchronously."""
+    worker = dramatiq.Worker(broker, worker_timeout=100)
+    worker.start()
+    yield worker
+    worker.stop()
+
+
+@pytest.fixture(scope="function")
+def client(db: Session, broker: dramatiq.Broker) -> Generator[TestClient, None, None]:
     """
     Provides a TestClient configured to use the same transacted DB session
     as the test function (provided by the 'db' fixture).
@@ -58,12 +85,21 @@ def client(db: Session) -> Generator[TestClient, None, None]:
     use the same transaction that will be rolled back after the test.
     """
 
+    from app.api import app  # import after StubBroker is active
+
     def get_db_override() -> Generator[Session, None, None]:
         # Yields the existing, transacted session from the `db` fixture
         yield db  # 'db' here is the session instance from the 'db' fixture
 
     # Override the get_db dependency to use our test session
     app.dependency_overrides[get_db] = get_db_override
+
+    # Monkey-patch the SessionLocal used inside Dramatiq tasks so that they
+    # operate in the SAME SQLAlchemy session (and therefore the same outer
+    # transaction) as the API code.
+    import app.tasks.jobs as jobs  # noqa: WPS433
+
+    jobs.SessionLocal = lambda: db  # type: ignore[assignment]
 
     with TestClient(app) as c:
         yield c

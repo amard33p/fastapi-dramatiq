@@ -1,23 +1,39 @@
+import importlib
 import dramatiq
-from dramatiq.brokers.rabbitmq import RabbitmqBroker
+
 from dramatiq.results import Results
-from dramatiq.results.backends import RedisBackend
-from dramatiq.middleware import CurrentMessage, Retries, TimeLimit
-import redis
+
+
 from ..settings import settings
 
-# Setup Redis backend for results
-redis_client = redis.Redis.from_url(settings.redis_url)
-result_backend = RedisBackend(client=redis_client)
+# Dynamically build broker based on settings
 
-# Setup RabbitMQ broker
-rabbitmq_broker = RabbitmqBroker(url=settings.rabbitmq_url)
-
-# Add middleware
-rabbitmq_broker.add_middleware(CurrentMessage())
-rabbitmq_broker.add_middleware(Retries(max_retries=3))
-rabbitmq_broker.add_middleware(TimeLimit(time_limit=300000))  # 5 minutes
-rabbitmq_broker.add_middleware(Results(backend=result_backend))
 
 # Set as default broker
-dramatiq.set_broker(rabbitmq_broker)
+def _import_from_path(path: str):
+    module_name, cls_name = path.rsplit(".", 1)
+    module = importlib.import_module(module_name)
+    return getattr(module, cls_name)
+
+
+cfg = (
+    settings.DRAMATIQ_TEST_CONFIG if settings.testing else settings.DRAMATIQ_PROD_CONFIG
+)
+
+BrokerCls = _import_from_path(cfg["BROKER"])
+
+broker = BrokerCls(**cfg.get("OPTIONS", {}))
+
+# add middleware from list
+for mw_path in cfg.get("MIDDLEWARE", []):
+    MWCls = _import_from_path(mw_path)
+    broker.add_middleware(MWCls())
+
+# attach results backend as specified
+backend_cfg = cfg.get("RESULT_BACKEND")
+if backend_cfg:
+    BackendCls = _import_from_path(backend_cfg["CLASS"])
+    backend = BackendCls(**backend_cfg.get("KWARGS", {}))
+    broker.add_middleware(Results(backend=backend))
+
+dramatiq.set_broker(broker)
