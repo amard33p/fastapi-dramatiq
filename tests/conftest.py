@@ -72,34 +72,29 @@ def worker(broker: dramatiq.Broker) -> Generator[dramatiq.Worker, None, None]:
 
 
 @pytest.fixture(scope="function")
-def client(db: Session, broker: dramatiq.Broker) -> Generator[TestClient, None, None]:
+def client(
+    db: Session, broker: dramatiq.Broker, monkeypatch
+) -> Generator[TestClient, None, None]:
     """
-    Provides a TestClient configured to use the same transacted DB session
-    as the test function (provided by the 'db' fixture).
-
-    This ensures that all database operations performed through the API
-    use the same transaction that will be rolled back after the test.
+    FastAPI TestClient + Dramatiq worker that use *exactly the same*
+    transactional session as the test itself.
     """
-
     from app.db import get_db
-    from app.api import app  # import after StubBroker is active
+    from app.api import app
+    import app.db as dbmodule
 
-    def get_db_override() -> Generator[Session, None, None]:
-        # Yields the existing, transacted session from the `db` fixture
-        yield db  # 'db' here is the session instance from the 'db' fixture
+    # -- 1. FastAPI depends on this session -------------------------------
+    def get_db_override():
+        yield db
 
-    # Override the get_db dependency to use our test session
     app.dependency_overrides[get_db] = get_db_override
 
-    # Monkey-patch the SessionLocal used inside Dramatiq tasks so that they
-    # operate in the SAME SQLAlchemy session (and therefore the same outer
-    # transaction) as the API code.
-    import app.tasks.jobs as jobs  # noqa: WPS433
+    # -- 2. Dramatiq depends on SessionLocal ------------------------------
+    monkeypatch.setattr(dbmodule, "SessionLocal", lambda: db, raising=True)
 
-    jobs.SessionLocal = lambda: db  # type: ignore[assignment]
-
+    # -- 3. Run the test --------------------------------------------------
     with TestClient(app) as c:
         yield c
 
-    # Clear the specific override after the client is used
+    # -- 4. Cleanup -------------------------------------------------------
     app.dependency_overrides.pop(get_db, None)

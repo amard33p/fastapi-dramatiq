@@ -6,9 +6,8 @@ from typing import List, Dict, Any
 import dramatiq
 import httpx
 from sqlalchemy.orm import Session
-from dramatiq import pipeline
 
-
+from .decorators import with_session
 from ..schemas import UserCreate, ExternalUser
 from ..crud import bulk_create_users, update_job_status
 from ..settings import settings
@@ -18,20 +17,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# --------------------------------------------------------------------------- #
+# pure I/O actors (no DB) ----------------------------------------------------
+# --------------------------------------------------------------------------- #
 @dramatiq.actor(store_results=True, max_retries=3)
 def fetch_users_from_api() -> List[Dict[str, Any]]:
-    """Step 1: Fetch users from external API"""
-    logger.info("Starting to fetch users from external API")
-    try:
-        with httpx.Client(timeout=30.0) as client:
-            response = client.get(settings.jsonplaceholder_url)
-            response.raise_for_status()
-            users_data = response.json()
-        logger.info(f"Successfully fetched {len(users_data)} users")
-        return users_data
-    except httpx.RequestError as e:
-        logger.error(f"Error fetching users from API: {e}")
-        raise
+    with httpx.Client(timeout=30.0) as c:
+        r = c.get(settings.jsonplaceholder_url)
+        r.raise_for_status()
+    return r.json()
 
 
 @dramatiq.actor(store_results=True, max_retries=3)
@@ -67,7 +61,11 @@ def simulate_processing_delay() -> str:
     return f"Processed with {delay}s delay"
 
 
+# --------------------------------------------------------------------------- #
+# DB actors ------------------------------------------------------------------
+# --------------------------------------------------------------------------- #
 @dramatiq.actor(store_results=True, max_retries=3)
+@with_session
 def save_users_to_database(users_data: List[Dict[str, Any]], *, db: Session):
     """Step 4: Save users to database (session injected by middleware)"""
     logger.info(f"Starting to save {len(users_data)} users to database")
@@ -82,6 +80,7 @@ def save_users_to_database(users_data: List[Dict[str, Any]], *, db: Session):
 
 
 @dramatiq.actor(store_results=True, max_retries=3, time_limit=60_000)
+@with_session
 def update_job_status_task(
     job_id: str,
     status: str,
@@ -96,6 +95,9 @@ def update_job_status_task(
     logger.info(f"Successfully updated job status for job {job_id}")
 
 
+# --------------------------------------------------------------------------- #
+# pipeline orchestration -----------------------------------------------------
+# --------------------------------------------------------------------------- #
 @dramatiq.actor(store_results=True, max_retries=0)
 def finalize_workflow(save_result: Dict[str, Any], *, job_id: str):
     """Final step in the pipeline to mark the job 'completed'."""
@@ -104,52 +106,41 @@ def finalize_workflow(save_result: Dict[str, Any], *, job_id: str):
         "workflow_completed": True,
         "database_result": save_result,
     }
-    # This task will also get a db session from the middleware automatically.
     update_job_status_task.send(job_id, "completed", result=final_result)
 
 
 @dramatiq.actor(store_results=True)
-def handle_workflow_failure(message_data, job_id: str):
-    """Error callback for the pipeline. Updates job status to 'failed'."""
-    try:
-        # The exception is stored in the message data under the 'exception' key
-        exception = message_data.get("exception", {})
-        error_msg = f"Workflow failed for job {job_id}: {exception.get('message', 'Unknown error')}"
-        logger.error(error_msg)
-        update_job_status_task.send(job_id, "failed", error=error_msg)
-    except Exception as e:
-        logger.error(f"Critical error in failure handler for job {job_id}: {e}")
+def handle_workflow_failure(message_data, exception_data):
+    """Runs whenever *any* pipeline step fails."""
+    job_id = message_data["options"].get("job_id")
+    if not job_id:
+        logger.error("No job_id found in failed message: %s", message_data)
+        return
+
+    err = f"Workflow failed for job {job_id}: {exception_data['message']}"
+    logger.error(err)
+    update_job_status_task.send(job_id, "failed", error=err)
 
 
-@dramatiq.actor(max_retries=0)  # Retries should be handled by individual tasks
+@dramatiq.actor(max_retries=0)
 def process_users_pipeline(job_id: str):
-    """Main workflow orchestrator that STARTS the pipeline."""
-    logger.info(f"Starting process_users_pipeline for job {job_id}")
+    logger.info("Starting pipeline for job %s", job_id)
 
-    # Set initial job status to running
+    # mark the job "running"
     update_job_status_task.send(job_id, "running")
 
-    # Define the pipeline
-    workflow_pipeline = pipeline(
-        [
-            # Step 1: Fetch users. The result is piped to the next task.
-            fetch_users_from_api.message(),
-            # Step 2: Transform users. The result is piped to the next task.
-            transform_users_data.message(),
-            # Step 3:
-            # 
-            # 
-            # \\ Save to DB. The result is piped to the finalization task.
-            # The `simulate_processing_delay` task was removed as it's not part of the data flow.
-            # If a delay is truly needed, it can be part of another task.
-            save_users_to_database.message(),
-            # Step 4: Finalize. We pass the original job_id as an additional argument.
-            finalize_workflow.message(job_id=job_id),
-        ]
-    ).on_failure(handle_workflow_failure.message(job_id=job_id))
+    # convenience dict so we don’t repeat ourselves
+    cb_opts = dict(
+        on_failure=handle_workflow_failure.actor_name,
+        job_id=job_id,
+    )
 
-    # Run the pipeline
-    workflow_pipeline.run()
+    pipe = (
+        fetch_users_from_api.message_with_options(**cb_opts)
+        | transform_users_data.message_with_options(**cb_opts)
+        | save_users_to_database.message_with_options(**cb_opts)
+        | finalize_workflow.message(job_id=job_id)
+    ).run()
 
 
 # Health check task for monitoring

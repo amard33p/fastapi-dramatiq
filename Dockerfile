@@ -29,9 +29,3 @@ COPY app/ ./app/
 
 # Install Python dependencies system-wide with uv
 RUN uv sync --no-cache-dir
-
-# Expose port
-EXPOSE 8000
-
-# Default command (can be overridden in docker-compose)
-CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000"]

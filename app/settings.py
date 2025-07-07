@@ -1,14 +1,21 @@
-from pydantic_settings import BaseSettings
-from typing import Dict, Any
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 
 
 class Settings(BaseSettings):
-    # Database connection components – assembled dynamically
-    db_user: str = "postgres"
-    db_password: str = "postgres"
-    db_name: str = "fastapi_dramatiq"
-    db_port: int = 5432
-    db_host: str = "db"  # default hostname inside Docker network
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_ignore_empty=True,
+        extra="ignore",
+    )
+
+    db_user: str = Field(..., alias="POSTGRES_USER")
+    db_password: str = Field(..., alias="POSTGRES_PASSWORD")
+    db_host: str = Field(
+        default="db", alias="POSTGRES_HOST"
+    )  # default hostname inside Docker network
+    db_port: int = Field(..., alias="POSTGRES_PORT")
+    db_name: str = Field(..., alias="POSTGRES_DB")
 
     # API settings
     api_title: str = "FastAPI Dramatiq Demo"
@@ -39,9 +46,6 @@ class Settings(BaseSettings):
             f"postgresql://{self.db_user}:{self.db_password}"
             f"@{host}:{self.db_port}/{self.db_name}"
         )
-
-    class Config:
-        env_file = ".env"
 
 
 settings = Settings()
