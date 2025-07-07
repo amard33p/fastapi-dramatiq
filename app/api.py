@@ -11,7 +11,7 @@ from .db import get_db, create_tables
 from .models import User, JobStatus
 from .schemas import UserResponse, JobStatusResponse, ProcessUsersResponse
 from .crud import get_users, get_job_status, create_job_status
-from .tasks.jobs import process_users_workflow
+from .tasks.jobs import process_users_pipeline
 from .settings import settings
 
 # Configure logging
@@ -97,7 +97,7 @@ async def process_users(db: Session = Depends(get_db)):
         create_job_status(db, job_id, "pending")
 
         # Start the workflow asynchronously
-        process_users_workflow.send(job_id)
+        process_users_pipeline.send(job_id)
 
         logger.info(f"Started process_users workflow with job ID: {job_id}")
 
