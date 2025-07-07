@@ -9,6 +9,7 @@ from ..db import SessionLocal
 from ..schemas import UserCreate, ExternalUser
 from ..crud import bulk_create_users, update_job_status
 from ..settings import settings
+from .broker import broker
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

@@ -6,7 +6,6 @@ Simple test script to verify the FastAPI Dramatiq workflow
 import requests
 import time
 import json
-from typing import Dict, Any
 
 
 def test_workflow(base_url: str = "http://localhost:8000") -> None:

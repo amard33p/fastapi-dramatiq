@@ -5,8 +5,8 @@ from typing import Optional
 
 class Settings(BaseSettings):
     database_url: str = "postgresql://postgres:postgres@localhost:5432/fastapi_dramatiq"
-    rabbitmq_url: str = "amqp://admin:admin@localhost:5672/"
-    redis_url: str = "redis://localhost:6379/0"
+    rabbitmq_url: str = "amqp://admin:admin@rabbitmq:5672/"
+    redis_url: str = "redis://redis:6379/0"
 
     # API settings
     api_title: str = "FastAPI Dramatiq Demo"
@@ -22,28 +22,20 @@ class Settings(BaseSettings):
     # Dramatiq configuration dictionaries
     DRAMATIQ_PROD_CONFIG: Dict[str, Any] = {
         "BROKER": "dramatiq.brokers.rabbitmq.RabbitmqBroker",
-        "OPTIONS": {"url": "amqp://admin:admin@localhost:5672/"},
+        "OPTIONS": {"url": "amqp://admin:admin@rabbitmq:5672/"},
         "MIDDLEWARE": [
             "dramatiq.middleware.CurrentMessage",
-            "dramatiq.middleware.Retries",
-            "dramatiq.middleware.TimeLimit",
         ],
         "RESULT_BACKEND": {
             "CLASS": "dramatiq.results.backends.RedisBackend",
-            "KWARGS": {"url": "redis://localhost:6379/0"},
+            "KWARGS": {"url": "redis://redis:6379/0"},
         },
     }
 
     DRAMATIQ_TEST_CONFIG: Dict[str, Any] = {
         "BROKER": "dramatiq.brokers.stub.StubBroker",
         "OPTIONS": {},
-        "MIDDLEWARE": [
-            "dramatiq.middleware.AgeLimit",
-            "dramatiq.middleware.TimeLimit",
-            "dramatiq.middleware.Callbacks",
-            "dramatiq.middleware.Pipelines",
-            "dramatiq.middleware.Retries",
-        ],
+        "MIDDLEWARE": [],
         "RESULT_BACKEND": {
             "CLASS": "dramatiq.results.backends.StubBackend",
             "KWARGS": {},
