@@ -73,5 +73,17 @@ services:
         - path: ./pyproject.toml
           action: rebuild
 
+  scheduler:
+    build: .
+    command: ["periodiq", "-v", "app.tasks.broker", "app.tasks.scheduled_jobs"]
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      dramatiq_pg_init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 # volumes:
 #   postgres_data:

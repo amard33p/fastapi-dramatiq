@@ -19,13 +19,14 @@ dependencies = [
     "uvicorn[standard]==0.35.0",
     "sqlalchemy==2.0.41",
     "psycopg2-binary==2.9.10",
-    "dramatiq-pg @ git+https://gitlab.com/dalibo/dramatiq-pg.git@master",
     "httpx==0.28.1",
     "pydantic==2.11.7",
     "pydantic-settings==2.10.1",
     "alembic==1.16.2",
     "requests==2.32.4",
     "email-validator==2.2.0",
+    "dramatiq-pg @ git+https://gitlab.com/dalibo/dramatiq-pg.git@master",
+    "periodiq @ git+https://gitlab.com/bersace/periodiq.git@master",
 ]
 
 [tool.uv]

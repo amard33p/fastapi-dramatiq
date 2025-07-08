@@ -1,6 +1,6 @@
-# FastAPI Dramatiq Demo with PostgreSQL Only
+# FastAPI Dramatiq, Periodiq Demo with PostgreSQL Only
 
-This project demonstrates a FastAPI application integrated with [Dramatiq](https://dramatiq.io/) for background task processing. It uses [dramatiq-pg](https://gitlab.com/dalibo/dramatiq-pg), which leverages just PostgreSQL for both the message broker and the results backend, removing the need for RabbitMQ and Redis.
+This project demonstrates a FastAPI application integrated with [Dramatiq](https://dramatiq.io/) for background task processing and [Periodiq](https://gitlab.com/bersace/periodiq) for periodic task scheduling. It uses [dramatiq-pg](https://gitlab.com/dalibo/dramatiq-pg), which leverages just PostgreSQL for both the message broker and the results backend, removing the need for RabbitMQ and Redis.
 
 Checkout the branch [redis-rabbitmq](https://github.com/amard33p/fastapi-dramatiq/tree/redis-rabbitmq) if you instead want to use Redis as result backend and RabbitMQ as broker.
 
@@ -53,8 +53,9 @@ fastapi-dramatiq-demo/
     ├── crud.py            # Database operations
     └── tasks/
         ├── __init__.py
-        ├── broker.py      # Dramatiq broker configuration
-        └── jobs.py        # Background tasks
+        ├── broker.py            # Dramatiq broker configuration
+        └── jobs.py              # Background tasks
+        └── scheduled_jobs.py    # Periodiq scheduled jobs
 ```
 
 ## Dramatiq Workflow Overview
