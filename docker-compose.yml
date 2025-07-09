@@ -21,7 +21,7 @@ services:
       - .env
     command: >
       sh -c "
-        pip install --no-cache-dir dramatiq-pg psycopg2-binary &&
+        pip install --no-cache-dir dramatiq-pg==0.12.0 psycopg2-binary==2.9.10 &&
         dramatiq-pg -d postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB} init
       "
     depends_on:
