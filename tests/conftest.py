@@ -79,7 +79,7 @@ def client(
     FastAPI TestClient + Dramatiq worker that use *exactly the same*
     transactional session as the test itself.
     """
-    from app.db import get_db
+    from app.deps import get_db
     from app.api import app
     import app.db as dbmodule
 

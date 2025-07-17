@@ -1,13 +1,15 @@
-from fastapi import FastAPI, HTTPException, Depends, status
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from typing import List
 import uuid
 import logging
 from contextlib import asynccontextmanager
+from typing import List
 
-from .db import get_db, create_tables
+from fastapi import FastAPI, HTTPException, status
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+
+
+from .deps import SessionDep
+from .db import create_tables
 from .models import User, JobStatus
 from .schemas import UserResponse, JobStatusResponse, ProcessUsersResponse
 from .crud import get_users, get_job_status, create_job_status
@@ -57,13 +59,11 @@ async def root():
 
 
 @app.get("/health", tags=["Health"])
-async def health_check_endpoint():
+async def health_check_endpoint(db: SessionDep):
     """Health check endpoint"""
     try:
         # Test database connection
-        db = next(get_db())
         db.execute(text("SELECT 1"))
-        db.close()
 
         # Test dramatiq worker (optional - comment out if workers not running)
         # health_check.send()
@@ -77,7 +77,7 @@ async def health_check_endpoint():
 
 
 @app.post("/process_users", response_model=ProcessUsersResponse, tags=["Jobs"])
-async def process_users(db: Session = Depends(get_db)):
+async def process_users(db: SessionDep):
     """
     Process users workflow endpoint
 
@@ -114,7 +114,7 @@ async def process_users(db: Session = Depends(get_db)):
 
 
 @app.get("/jobs/{job_id}/status", response_model=JobStatusResponse, tags=["Jobs"])
-async def get_job_status_endpoint(job_id: str, db: Session = Depends(get_db)):
+async def get_job_status_endpoint(job_id: str, db: SessionDep):
     """
     Get job status by job ID
 
@@ -146,7 +146,7 @@ async def get_job_status_endpoint(job_id: str, db: Session = Depends(get_db)):
 
 
 @app.get("/jobs", tags=["Jobs"])
-async def list_jobs(skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
+async def list_jobs(db: SessionDep, skip: int = 0, limit: int = 20):
     """
     List all jobs with pagination
     """
@@ -162,7 +162,7 @@ async def list_jobs(skip: int = 0, limit: int = 20, db: Session = Depends(get_db
 
 
 @app.get("/users", response_model=List[UserResponse], tags=["Users"])
-async def list_users(skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
+async def list_users(db: SessionDep, skip: int = 0, limit: int = 20):
     """
     List all users with pagination
     """
@@ -178,7 +178,7 @@ async def list_users(skip: int = 0, limit: int = 20, db: Session = Depends(get_d
 
 
 @app.get("/users/count", tags=["Users"])
-async def count_users(db: Session = Depends(get_db)):
+async def count_users(db: SessionDep):
     """
     Get total count of users
     """

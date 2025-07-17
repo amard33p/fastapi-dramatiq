@@ -74,7 +74,10 @@ def test_full_workflow(
     print("1. Checking application health...")
     health_resp = client.get("/health")
     if health_resp.status_code != 200:  # Environment not ready → skip
-        print("❌ Application health check failed; skipping test.")
+        print(
+            f"❌ Application health check failed with status {health_resp.status_code}; skipping test."
+        )
+        print(f"Response: {health_resp.text}")
         pytest.skip("FastAPI-Dramatiq stack is not running (health check failed)")
     print("✅ Application is healthy")
 
