@@ -54,7 +54,7 @@ services:
 
   worker:
     build: .
-    command: ["dramatiq", "app.tasks.jobs", "--processes", "2", "--threads", "4"]
+    command: ["dramatiq", "app.tasks.broker", "app.tasks.jobs", "app.tasks.scheduled_jobs", "--processes", "2", "--threads", "4"]
     env_file:
       - .env
     depends_on:

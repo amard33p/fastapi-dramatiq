@@ -28,6 +28,7 @@ dependencies = [
     "email-validator==2.2.0",
     "dramatiq-pg @ git+https://gitlab.com/dalibo/dramatiq-pg.git@80b1a490d0a494925a9f8be399a11b38cee5480a",
     "periodiq @ git+https://gitlab.com/bersace/periodiq.git@65acd14b8739bd8577c5f44729d211c64c274423",
+    "fastapi-injectable==1.1.0",
 ]
 
 [tool.uv]

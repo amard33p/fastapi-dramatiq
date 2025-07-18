@@ -83,23 +83,19 @@ def worker(broker: dramatiq.Broker) -> Generator[dramatiq.Worker, None, None]:
 
 
 @pytest.fixture(scope="function")
-def client(db: Session, monkeypatch) -> Generator[TestClient, None, None]:
+def client(db: Session) -> Generator[TestClient, None, None]:
     """
     FastAPI TestClient + Dramatiq worker that use *exactly the same*
     transactional session as the test itself.
     """
     from app.deps import get_db
     from app.api import app
-    import app.db as dbmodule
 
     # -- 1. FastAPI depends on this session -------------------------------
     def get_db_override():
         yield db
 
     app.dependency_overrides[get_db] = get_db_override
-
-    # -- 2. Dramatiq depends on SessionLocal ------------------------------
-    monkeypatch.setattr(dbmodule, "SessionLocal", lambda: db, raising=True)
 
     # -- 3. Run the test --------------------------------------------------
     with TestClient(app) as c:

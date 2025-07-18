@@ -6,11 +6,12 @@ from typing import List, Dict, Any
 import dramatiq
 import httpx
 from sqlalchemy.orm import Session
+from fastapi_injectable import injectable
 
-from .decorators import with_session
 from ..schemas import UserCreate, ExternalUser
 from ..crud import bulk_create_users, update_job_status
 from ..settings import settings
+from ..deps import SessionDep
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -65,8 +66,8 @@ def simulate_processing_delay() -> str:
 # DB actors ------------------------------------------------------------------
 # --------------------------------------------------------------------------- #
 @dramatiq.actor(store_results=True, max_retries=3)
-@with_session
-def save_users_to_database(users_data: List[Dict[str, Any]], *, db: Session):
+@injectable
+def save_users_to_database(users_data: List[Dict[str, Any]], db: SessionDep):
     """Step 4: Save users to database (session injected by middleware)"""
     logger.info(f"Starting to save {len(users_data)} users to database")
     users_to_create = [UserCreate(**data) for data in users_data]
@@ -80,14 +81,13 @@ def save_users_to_database(users_data: List[Dict[str, Any]], *, db: Session):
 
 
 @dramatiq.actor(store_results=True, max_retries=3, time_limit=60_000)
-@with_session
+@injectable
 def update_job_status_task(
     job_id: str,
     status: str,
+    db: SessionDep,
     result: Dict[str, Any] = None,
     error: str = None,
-    *,
-    db: Session,
 ):
     """Helper task to update job status (session injected by middleware)"""
     logger.info(f"Updating job status for job {job_id} to {status}")

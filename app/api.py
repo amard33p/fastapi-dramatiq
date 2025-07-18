@@ -3,9 +3,10 @@ import logging
 from contextlib import asynccontextmanager
 from typing import List
 
+from sqlalchemy import text
 from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
+from fastapi_injectable import register_app
 
 
 from .deps import SessionDep
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
     """Handle application startup and shutdown"""
     # Startup
     logger.info("Starting up FastAPI application")
+    register_app(app)
     try:
         create_tables()
         logger.info("Database tables created successfully")
