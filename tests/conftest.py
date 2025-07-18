@@ -13,6 +13,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
+from dramatiq.brokers.stub import StubBroker
+from dramatiq.results import Results
+from dramatiq.results.backends.stub import StubBackend
 
 from app.settings import settings
 
@@ -20,9 +23,6 @@ from app.settings import settings
 # database engines or Dramatiq brokers so they see the correct hostname
 # ("localhost" instead of "db").
 settings.testing = True
-
-# Import broker module so that stub_broker is registered
-import app.tasks.broker
 
 
 @pytest.fixture(scope="session")
@@ -34,7 +34,7 @@ def db_engine() -> Generator[Engine, None, None]:
     engine.dispose()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="function", autouse=True)
 def db(db_engine: Engine) -> Generator[Session, None, None]:
     """
     Create a transactional database session for a test.
@@ -55,11 +55,22 @@ def db(db_engine: Engine) -> Generator[Session, None, None]:
         connection.close()
 
 
-@pytest.fixture(scope="session")
-def broker() -> Generator[dramatiq.Broker, None, None]:
-    """Configure StubBroker via settings and return it."""
+@pytest.fixture(scope="function")
+def broker() -> Generator[StubBroker, None, None]:
+    """
+    Fixture for a Dramatiq StubBroker.
+    This broker stores messages in memory and allows for synchronous processing in tests.
+    """
+    # Import broker module so that stub_broker is registered
+    import app.tasks.broker
 
-    yield dramatiq.get_broker()
+    broker = StubBroker()
+    broker.add_middleware(Results(backend=StubBackend()))
+    assert isinstance(broker, StubBroker)
+    broker.flush_all()  # Clear any previous messages
+    dramatiq.set_broker(broker)
+    yield broker
+    dramatiq.set_broker(None)  # Reset the broker
 
 
 @pytest.fixture(scope="function")
@@ -72,9 +83,7 @@ def worker(broker: dramatiq.Broker) -> Generator[dramatiq.Worker, None, None]:
 
 
 @pytest.fixture(scope="function")
-def client(
-    db: Session, broker: dramatiq.Broker, monkeypatch
-) -> Generator[TestClient, None, None]:
+def client(db: Session, monkeypatch) -> Generator[TestClient, None, None]:
     """
     FastAPI TestClient + Dramatiq worker that use *exactly the same*
     transactional session as the test itself.
@@ -97,4 +106,4 @@ def client(
         yield c
 
     # -- 4. Cleanup -------------------------------------------------------
-    app.dependency_overrides.pop(get_db, None)
+    app.dependency_overrides.clear()

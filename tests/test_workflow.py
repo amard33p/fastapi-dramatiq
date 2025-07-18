@@ -20,14 +20,13 @@ from typing import Any, Dict
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
 
 
 # Client fixture is now provided by conftest.py
 
 
 def _wait_for_job_completion(
-    client: TestClient, job_id: str, db: Session = None, timeout: int = 60
+    client: TestClient, job_id: str, timeout: int = 60
 ) -> Dict[str, Any]:
     """Poll ``/jobs/{job_id}/status`` until the job is done or *timeout* seconds.
 
@@ -61,9 +60,8 @@ def _wait_for_job_completion(
     raise AssertionError("Timed out waiting for background job to complete")
 
 
-def test_full_workflow(
-    client: TestClient, db: Session, worker
-) -> None:  # pragma: no cover – integration test
+@pytest.mark.usefixtures("worker")
+def test_full_workflow(client: TestClient) -> None:
     print("\n🚀 Testing FastAPI Dramatiq Workflow with TestClient (pytest)")
     print("=" * 50)
     print(
@@ -95,7 +93,7 @@ def test_full_workflow(
 
     # 4. Wait for completion
     print("4. Waiting for job completion...")
-    final_status = _wait_for_job_completion(client, job_id, db=db)
+    final_status = _wait_for_job_completion(client, job_id)
     print(f"✅ Job status: {final_status['status']}")
     assert final_status["status"] == "completed"
     assert final_status.get("result", {}).get("workflow_completed") is True
