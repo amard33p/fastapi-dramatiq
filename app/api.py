@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
     """Handle application startup and shutdown"""
     # Startup
     logger.info("Starting up FastAPI application")
-    register_app(app)
+    await register_app(app)
     try:
         create_tables()
         logger.info("Database tables created successfully")

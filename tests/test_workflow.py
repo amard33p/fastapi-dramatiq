@@ -26,7 +26,7 @@ from fastapi.testclient import TestClient
 
 
 def _wait_for_job_completion(
-    client: TestClient, job_id: str, timeout: int = 60
+    client: TestClient, job_id: str, timeout: int = 10
 ) -> Dict[str, Any]:
     """Poll ``/jobs/{job_id}/status`` until the job is done or *timeout* seconds.
 

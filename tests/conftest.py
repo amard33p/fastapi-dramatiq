@@ -7,6 +7,7 @@ ensuring that database changes made during tests are rolled back and not persist
 
 from typing import Generator
 
+import asyncio
 import dramatiq
 import pytest
 from fastapi.testclient import TestClient
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session
 from dramatiq.brokers.stub import StubBroker
 from dramatiq.results import Results
 from dramatiq.results.backends.stub import StubBackend
+from fastapi_injectable import register_app
 
 from app.settings import settings
 
@@ -90,6 +92,8 @@ def client(db: Session) -> Generator[TestClient, None, None]:
     """
     from app.deps import get_db
     from app.api import app
+
+    asyncio.run(register_app(app))
 
     # -- 1. FastAPI depends on this session -------------------------------
     def get_db_override():
